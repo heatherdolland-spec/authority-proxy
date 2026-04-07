@@ -4,19 +4,20 @@ import os
 
 app = Flask(__name__)
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, POST, OPTIONS'
+    return response
+
 @app.route('/', methods=['GET', 'HEAD', 'OPTIONS', 'POST'])
 def proxy():
     if request.method in ['GET', 'HEAD']:
-        response = jsonify({'status': 'Authority Proxy Running'})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        return response
+        return jsonify({'status': 'Authority Proxy Running'})
 
     if request.method == 'OPTIONS':
-        response = jsonify({})
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        return response
+        return jsonify({})
 
     client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
     data = request.json
@@ -28,12 +29,10 @@ def proxy():
         messages=data['messages']
     )
 
-    response = jsonify({
+    return jsonify({
         'content': [{'text': message.content[0].text, 'type': 'text'}]
     })
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)   
+    app.run(host='0.0.0.0', port=port)
