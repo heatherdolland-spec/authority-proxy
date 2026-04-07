@@ -1,8 +1,34 @@
 from flask import Flask, request, jsonify
 import anthropic
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
+
+def send_email(to_email, subject, body, reply_to=None):
+    try:
+        smtp_host = 'smtp.gmail.com'
+        smtp_port = 587
+        smtp_user = os.environ.get('EMAIL_USER')
+        smtp_pass = os.environ.get('EMAIL_PASS')
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        if reply_to:
+            msg['Reply-To'] = reply_to
+        msg.attach(MIMEText(body, 'plain'))
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, to_email, msg.as_string())
+        server.quit()
+        return True
+    except Exception as e:
+        print('Email error:', e)
+        return False
 
 @app.after_request
 def add_cors_headers(response):
@@ -15,20 +41,24 @@ def add_cors_headers(response):
 def proxy():
     if request.method in ['GET', 'HEAD']:
         return jsonify({'status': 'Authority Proxy Running'})
-
     if request.method == 'OPTIONS':
         return jsonify({})
-
-    client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
     data = request.json
-
+    if data.get('type') == 'email':
+        send_email(
+            data.get('to'),
+            data.get('subject'),
+            data.get('body'),
+            data.get('reply_to')
+        )
+        return jsonify({'status': 'sent'})
+    client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
     message = client.messages.create(
         model=data['model'],
         max_tokens=data['max_tokens'],
         system=data['system'],
         messages=data['messages']
     )
-
     return jsonify({
         'content': [{'text': message.content[0].text, 'type': 'text'}]
     })
