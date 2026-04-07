@@ -9,8 +9,6 @@ app = Flask(__name__)
 
 def send_email(to_email, subject, body, reply_to=None):
     try:
-        smtp_host = 'smtp.gmail.com'
-        smtp_port = 587
         smtp_user = os.environ.get('EMAIL_USER')
         smtp_pass = os.environ.get('EMAIL_PASS')
         msg = MIMEMultipart()
@@ -20,7 +18,7 @@ def send_email(to_email, subject, body, reply_to=None):
         if reply_to:
             msg['Reply-To'] = reply_to
         msg.attach(MIMEText(body, 'plain'))
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(smtp_user, smtp_pass)
         server.sendmail(smtp_user, to_email, msg.as_string())
@@ -45,13 +43,13 @@ def proxy():
         return jsonify({})
     data = request.json
     if data.get('type') == 'email':
-        send_email(
+        success = send_email(
             data.get('to'),
             data.get('subject'),
             data.get('body'),
             data.get('reply_to')
         )
-        return jsonify({'status': 'sent'})
+        return jsonify({'status': 'sent' if success else 'failed'})
     client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
     message = client.messages.create(
         model=data['model'],
