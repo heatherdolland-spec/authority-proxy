@@ -50,16 +50,26 @@ def proxy():
             data.get('reply_to')
         )
         return jsonify({'status': 'sent' if success else 'failed'})
-    client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-    message = client.messages.create(
-        model=data['model'],
-        max_tokens=data['max_tokens'],
-        system=data['system'],
-        messages=data['messages']
-    )
-    return jsonify({
-        'content': [{'text': message.content[0].text, 'type': 'text'}]
-    })
+    try:
+        client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+        extra = {}
+        if data.get('output_config'):
+            extra['output_config'] = data['output_config']
+        message = client.messages.create(
+            model=data['model'],
+            max_tokens=data['max_tokens'],
+            system=data['system'],
+            messages=data['messages'],
+            extra_body=extra or None
+        )
+        # Newer models can return thinking blocks before the text, so keep only the text
+        text = ''.join(b.text for b in message.content if b.type == 'text')
+        return jsonify({
+            'content': [{'text': text, 'type': 'text'}]
+        })
+    except Exception as e:
+        print('Claude API error:', e)
+        return jsonify({'error': {'message': str(e)}}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
